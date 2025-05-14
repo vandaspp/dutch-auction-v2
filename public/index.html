@@ -1,0 +1,126 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Dutch Auction v2</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; text-align: center; }
+    .hidden { display: none; }
+    #price { font-size: 3rem; color: red; margin: 1rem 0; }
+    input { padding: 0.5rem; font-size: 1rem; }
+    button { padding: 0.7rem 1.5rem; font-size: 1.1rem; margin: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div id="role-select">
+    <h2>請選擇您的身分</h2>
+    <button onclick="setRole('host')">我是主持人</button>
+    <button onclick="setRole('user')">我是參與者</button>
+  </div>
+
+  <div id="host-login" class="hidden">
+    <h3>輸入主持人密碼</h3>
+    <input type="password" id="host-pw"><br>
+    <button onclick="verifyHost()">登入</button>
+    <p id="host-status"></p>
+  </div>
+
+  <div id="nickname-area" class="hidden">
+    <h3>請輸入您的暱稱</h3>
+    <input id="nickname">
+    <button onclick="submitNickname()">送出</button>
+  </div>
+
+  <div id="auction" class="hidden">
+    <h2 id="item-name">拍賣品：-</h2>
+    <div id="price">-</div>
+    <button id="bidBtn" onclick="bid()">搶標</button>
+    <p id="result"></p>
+  </div>
+
+  <div id="host-panel" class="hidden">
+    <button onclick="startAuction()">▶️ 開始拍賣</button>
+    <button onclick="endAuction()">⏹️ 結束拍賣</button>
+    <p id="next-item">下一件將自動載入</p>
+  </div>
+
+  <script>
+    const socket = io();
+    let role = "", nickname = "";
+
+    function setRole(r) {
+      role = r;
+      document.getElementById("role-select").classList.add("hidden");
+      if (r === 'host') document.getElementById("host-login").classList.remove("hidden");
+      else document.getElementById("nickname-area").classList.remove("hidden");
+    }
+
+    function verifyHost() {
+      const pw = document.getElementById("host-pw").value;
+      socket.emit('verify-host', pw);
+    }
+
+    socket.on('host-verified', ok => {
+      if (ok) {
+        document.getElementById("host-status").innerText = "✅ 驗證成功";
+        document.getElementById("host-login").classList.add("hidden");
+        document.getElementById("host-panel").classList.remove("hidden");
+        document.getElementById("auction").classList.remove("hidden");
+      } else {
+        document.getElementById("host-status").innerText = "❌ 密碼錯誤";
+      }
+    });
+
+    function submitNickname() {
+      nickname = document.getElementById("nickname").value.trim();
+      if (!nickname) return alert("請輸入暱稱！");
+      socket.emit('set-nickname', nickname);
+      document.getElementById("nickname-area").classList.add("hidden");
+      document.getElementById("auction").classList.remove("hidden");
+    }
+
+    function startAuction() {
+      socket.emit('start-auction');
+    }
+
+    function endAuction() {
+      socket.emit('end-auction');
+    }
+
+    function bid() {
+      socket.emit('bid');
+    }
+
+    socket.on('auction-started', data => {
+      document.getElementById("item-name").innerText = "拍賣品：" + data.item;
+      document.getElementById("price").innerText = "$" + data.startPrice;
+      document.getElementById("result").innerText = "";
+      document.getElementById("bidBtn").disabled = false;
+      data.price = data.startPrice;
+    });
+
+    socket.on('price-updated', data => {
+      document.getElementById("price").innerText = "$" + data.price;
+    });
+
+    socket.on('auction-won', data => {
+      document.getElementById("result").innerText = `🎉 ${data.winner} 以 $${data.price} 得標 ${data.item}`;
+      document.getElementById("bidBtn").disabled = true;
+    });
+
+    socket.on('auction-ended', data => {
+      document.getElementById("result").innerText = '⚠️ 拍賣結束，' + (data.reason === 'no-bid' ? '無人出價' : '手動停止');
+      document.getElementById("bidBtn").disabled = true;
+    });
+
+    socket.on('next-item-ready', item => {
+      document.getElementById("item-name").innerText = "下一件拍賣品：" + item.item;
+      document.getElementById("price").innerText = "$" + item.startPrice;
+      document.getElementById("result").innerText = "下一件可手動開始拍賣";
+    });
+  </script>
+</body>
+</html>
