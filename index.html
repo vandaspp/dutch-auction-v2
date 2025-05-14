@@ -1,0 +1,139 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>荷蘭式拍賣 v2.2</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    #admin-panel, #auction-info, #history, #current-price { margin-top: 20px; }
+    input, button { margin: 5px; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h1>荷蘭式拍賣系統 v2.2</h1>
+
+  <div id="login-panel">
+    <input type="password" id="admin-password" placeholder="輸入主持人密碼">
+    <button onclick="login()">主持人登入</button>
+  </div>
+
+  <div id="admin-panel" style="display:none;">
+    <h2>主持人控制台</h2>
+    <input type="text" id="item" placeholder="輸入拍賣品名稱">
+    <input type="number" id="startPrice" placeholder="起始價格">
+    <input type="number" id="minPrice" placeholder="底價">
+    <input type="number" id="interval" placeholder="每次降價間隔(ms)">
+    <input type="number" id="decrease" placeholder="每次降價金額">
+    <button onclick="previewAuction()">📢 拍賣預告</button>
+    <button onclick="startAuction()">🎬 開始拍賣</button>
+    <button onclick="stopAuction()">🛑 結束拍賣</button>
+    <button onclick="clearHistory()">🗑 清除得標紀錄</button>
+  </div>
+
+  <div id="join-panel">
+    <input type="text" id="username" placeholder="輸入您的名稱">
+    <button onclick="joinAuction()">加入拍賣</button>
+  </div>
+
+  <div id="auction-info" style="display:none;">
+    <h2>正在拍賣：<span id="itemName"></span></h2>
+    <div id="current-price" style="font-size: 36px;">價格倒數中...</div>
+    <button onclick="bid()">💰 出價</button>
+  </div>
+
+  <div id="history">
+    <h3>得標紀錄</h3>
+    <ul id="winner-list"></ul>
+  </div>
+
+  <script>
+    let socket = io();
+    let isHost = false;
+    let user = '';
+
+    function login() {
+      const pw = document.getElementById('admin-password').value;
+      if (pw === "flower123") {
+        isHost = true;
+        document.getElementById('login-panel').style.display = 'none';
+        document.getElementById('admin-panel').style.display = 'block';
+      } else {
+        alert("密碼錯誤");
+      }
+    }
+
+    function joinAuction() {
+      user = document.getElementById("username").value;
+      if (!user) return alert("請輸入名稱");
+      document.getElementById("join-panel").style.display = "none";
+    }
+
+    function previewAuction() {
+      const data = collectAuctionData();
+      if (!data) return;
+      socket.emit("preview", data);
+    }
+
+    function startAuction() {
+      const data = collectAuctionData();
+      if (!data) return;
+      socket.emit("start", data);
+    }
+
+    function stopAuction() {
+      socket.emit("stop");
+    }
+
+    function clearHistory() {
+      socket.emit("clear");
+      document.getElementById("winner-list").innerHTML = "";
+    }
+
+    function bid() {
+      socket.emit("bid", { user });
+    }
+
+    function collectAuctionData() {
+      const item = document.getElementById("item").value;
+      const start = parseFloat(document.getElementById("startPrice").value);
+      const min = parseFloat(document.getElementById("minPrice").value);
+      const interval = parseInt(document.getElementById("interval").value);
+      const decrease = parseFloat(document.getElementById("decrease").value);
+      if (!item || isNaN(start) || isNaN(min) || isNaN(interval) || isNaN(decrease)) {
+        alert("請填入所有拍賣資料");
+        return null;
+      }
+      return { item, start, min, interval, decrease };
+    }
+
+    socket.on("preview", ({ item, start }) => {
+      document.getElementById("itemName").innerText = `${item}（即將以 $${start} 拍賣）`;
+      document.getElementById("auction-info").style.display = "block";
+    });
+
+    socket.on("update", ({ item, price }) => {
+      document.getElementById("itemName").innerText = item;
+      document.getElementById("current-price").innerText = `$${price}`;
+      document.getElementById("auction-info").style.display = "block";
+    });
+
+    socket.on("winner", ({ user, item, price }) => {
+      const li = document.createElement("li");
+      li.textContent = `${user} 得標「${item}」，價格 $${price}`;
+      document.getElementById("winner-list").prepend(li);
+      document.getElementById("auction-info").style.display = "none";
+    });
+
+    socket.on("clear", () => {
+      document.getElementById("winner-list").innerHTML = "";
+    });
+
+    socket.on("stop", () => {
+      document.getElementById("auction-info").style.display = "none";
+    });
+  </script>
+  <script src="/socket.io/socket.io.js"></script>
+</body>
+</html>
