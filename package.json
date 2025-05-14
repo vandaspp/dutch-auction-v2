@@ -1,5 +1,5 @@
 {
-  "name": "dutch-auction-v2.1",
+  "name": "dutch-auction-v2.2",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
